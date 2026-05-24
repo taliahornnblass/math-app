@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מפת ההרפתקה המתמטית</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#f5f5f0;min-height:100vh;padding:12px}
+.wrap{max-width:720px;margin:0 auto;padding:0.75rem 0}
+.hbar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.htitle{font-size:19px;font-weight:600;color:#222}
+.stars-pill{display:flex;align-items:center;gap:6px;background:#FAEEDA;border-radius:99px;padding:5px 14px}
+.stars-pill span{font-size:14px;font-weight:600;color:#633806}
+.reset-btn{display:flex;align-items:center;gap:5px;font-size:13px;padding:5px 14px;border-radius:99px;border:1px solid #ccc;background:#fff;color:#555;cursor:pointer;margin-right:auto}
+.reset-btn:hover{background:#f0f0f0}
+.map-wrap{border-radius:16px;overflow:hidden;border:2px solid #C0DD97;margin-bottom:12px}
+canvas{display:block;width:100%;cursor:pointer}
+.quiz-card{background:#fff;border:1px solid #e0e0e0;border-radius:14px;padding:1.25rem 1.5rem;direction:rtl}
+.quiz-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.quiz-label{font-size:13px;color:#888}
+.dots-row{display:flex;gap:5px}
+.dot{width:11px;height:11px;border-radius:50%}
+.q-text{font-size:18px;font-weight:600;color:#222;line-height:1.7;margin-bottom:14px}
+.q-text.ltr{direction:ltr;text-align:left;font-family:monospace;font-size:17px;letter-spacing:0.03em}
+.q-text.mixed{direction:rtl;text-align:right}
+.input-row{display:flex;gap:10px;align-items:center;flex-direction:row-reverse}
+.ans-in{font-size:16px;width:130px;text-align:center;padding:9px 10px;border-radius:8px;border:1.5px solid #bbb;background:#f8f8f8;color:#222}
+.ans-in:focus{outline:none;border-color:#7F77DD}
+.chk-btn{font-size:15px;padding:9px 22px;border-radius:8px;border:none;background:#7F77DD;color:#fff;cursor:pointer;font-weight:600}
+.chk-btn:hover{background:#534AB7}
+.chk-btn:disabled{opacity:0.4;cursor:default}
+.fb{margin-top:12px;padding:11px 15px;border-radius:8px;font-size:15px;display:none;direction:rtl}
+.fb-ok{background:#E1F5EE;color:#085041;border:1px solid #5DCAA5}
+.fb-no{background:#FCEBEB;color:#501313;border:1px solid #F09595}
+.nxt-btn{margin-top:10px;padding:9px 20px;border-radius:8px;border:1px solid #ccc;background:#fff;color:#333;cursor:pointer;font-size:14px;display:none}
+.nxt-btn:hover{background:#f0f0f0}
+.win-box{border-radius:14px;padding:2rem;text-align:center;direction:rtl;background:#EEEDFE;border:2px solid #7F77DD}
+.win-title{font-size:26px;font-weight:600;color:#26215C;margin-bottom:8px}
+.idle-hint{text-align:center;padding:1.5rem;color:#888;font-size:15px;direction:rtl}
+.diff-tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 10px;border-radius:99px;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="hbar">
+  <div class="htitle">🗺️ מפת ההרפתקה</div>
+  <div class="stars-pill">
+    <i class="ti ti-star" style="font-size:16px;color:#BA7517"></i>
+    <span id="star-disp">0 כוכבים</span>
+  </div>
+  <button class="reset-btn" onclick="resetGame()">
+    <i class="ti ti-refresh" style="font-size:14px"></i>
+    איפוס
+  </button>
+</div>
+<div class="map-wrap">
+  <canvas id="mc" height="420"></canvas>
+</div>
+<div id="main-area">
+  <div class="idle-hint" id="idle-hint">לחץ על תחנה מוארת כדי להתחיל! 🎯</div>
+</div>
+</div>
+
+<script>
+const TOPICS=[
+  {id:'natural',   name:'מספרים\nטבעיים',   color:'#D4537E', steps:1, diff:'קל',       dc:'#E1F5EE', dt:'#085041'},
+  {id:'ops4',      name:'4 פעולות\nחשבון',   color:'#D85A30', steps:2, diff:'קל',       dc:'#E1F5EE', dt:'#085041'},
+  {id:'order',     name:'סדר\nפעולות',       color:'#BA7517', steps:2, diff:'בינוני',   dc:'#FAEEDA', dt:'#633806'},
+  {id:'distrib',   name:'חוק\nהפילוג',       color:'#639922', steps:2, diff:'בינוני',   dc:'#FAEEDA', dt:'#633806'},
+  {id:'unknown',   name:'נעלם',              color:'#1D9E75', steps:3, diff:'בינוני',   dc:'#FAEEDA', dt:'#633806'},
+  {id:'estimate',  name:'אמדן',              color:'#378ADD', steps:2, diff:'קל',       dc:'#E1F5EE', dt:'#085041'},
+  {id:'powers',    name:'חזקות',             color:'#7F77DD', steps:3, diff:'בינוני',   dc:'#FAEEDA', dt:'#633806'},
+  {id:'fractions', name:'שברים\nועשרונים',   color:'#D4537E', steps:3, diff:'בינוני',   dc:'#FAEEDA', dt:'#633806'},
+  {id:'pct',       name:'אחוזים',            color:'#D85A30', steps:3, diff:'בינוני',   dc:'#FAEEDA', dt:'#633806'},
+  {id:'frac_ops',  name:'פעולות\nבשברים',    color:'#BA7517', steps:4, diff:'קשה',      dc:'#FCEBEB', dt:'#501313'},
+  {id:'convert',   name:'המרות',             color:'#639922', steps:4, diff:'קשה',      dc:'#FCEBEB', dt:'#501313'},
+  {id:'partof',    name:'חלק\nמכמות',        color:'#1D9E75', steps:4, diff:'קשה',      dc:'#FCEBEB', dt:'#501313'},
+  {id:'geo',       name:'שטח\nוהיקף',        color:'#378ADD', steps:4, diff:'קשה',      dc:'#FCEBEB', dt:'#501313'},
+  {id:'circle',    name:'מעגל\nועיגול',      color:'#7F77DD', steps:5, diff:'מאוד קשה', dc:'#FCEBEB', dt:'#501313'},
+  {id:'volume',    name:'נפח\nתיבה',         color:'#D4537E', steps:5, diff:'מאוד קשה', dc:'#FCEBEB', dt:'#501313'},
+];
+
+const NODE_POS=[
+  {x:620,y:370},{x:520,y:310},{x:420,y:360},{x:310,y:300},
+  {x:210,y:350},{x:130,y:270},{x:200,y:180},{x:310,y:130},
+  {x:420,y:170},{x:530,y:120},{x:610,y:60},{x:510,y:30},
+  {x:390,y:60},{x:270,y:50},{x:150,y:80},
+];
+
+function initProgress(){const p={};TOPICS.forEach((t,i)=>{p[t.id]={done:false,unlocked:i===0};});return p;}
+let progress=initProgress(),stars=0,activeId=null,session=null,raf=null;
+
+const canvas=document.getElementById('mc');
+const W=680,H=420;
+canvas.width=W;canvas.height=H;
+const ctx=canvas.getContext('2d');
+
+function resetGame(){
+  progress=initProgress();stars=0;activeId=null;session=null;
+  document.getElementById('star-disp').textContent='0 כוכבים';
+  document.getElementById('main-area').innerHTML='<div class="idle-hint" id="idle-hint">לחץ על תחנה מוארת כדי להתחיל! 🎯</div>';
+}
+
+function drawBg(){
+  ctx.fillStyle='#EAF3DE';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#C0DD97';
+  for(let i=0;i<18;i++){const x=Math.sin(i*137)*300+340,y=Math.cos(i*113)*180+210,r=18+Math.sin(i*71)*8;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}
+  ctx.fillStyle='#9FE1CB';ctx.beginPath();ctx.ellipse(80,350,70,35,0.3,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#85B7EB';ctx.beginPath();ctx.ellipse(590,200,50,25,0.5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#B5D4F4';ctx.beginPath();ctx.ellipse(350,390,55,20,0.1,0,Math.PI*2);ctx.fill();
+}
+
+function drawPaths(){
+  for(let i=0;i<NODE_POS.length-1;i++){
+    const a=NODE_POS[i],b=NODE_POS[i+1];
+    const done=progress[TOPICS[i].id].done;
+    const nextUp=progress[TOPICS[i+1].id].unlocked||progress[TOPICS[i+1].id].done;
+    ctx.beginPath();ctx.moveTo(a.x,a.y);
+    ctx.quadraticCurveTo((a.x+b.x)/2,(a.y+b.y)/2-20,b.x,b.y);
+    ctx.strokeStyle=done?'#1D9E75':nextUp?'#EF9F27':'#B4B2A9';
+    ctx.lineWidth=done?5:3;ctx.setLineDash(done?[]:[6,5]);ctx.lineCap='round';
+    ctx.stroke();ctx.setLineDash([]);
+  }
+}
+
+function rrect(x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r);ctx.arcTo(x+w,y+h,x+w-r,y+h,r);ctx.lineTo(x+r,y+h);
+  ctx.arcTo(x,y+h,x,y+h-r,r);ctx.lineTo(x,y+r);ctx.arcTo(x,y,x+r,y,r);ctx.closePath();
+}
+
+function drawNodes(){
+  NODE_POS.forEach((pos,i)=>{
+    const t=TOPICS[i],p=progress[t.id],isActive=activeId===t.id,isLast=i===TOPICS.length-1;
+    if(p.unlocked||p.done){ctx.beginPath();ctx.arc(pos.x,pos.y,28,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,0.5)';ctx.fill();}
+    ctx.beginPath();ctx.arc(pos.x,pos.y,22,0,Math.PI*2);
+    ctx.fillStyle=p.done?'#1D9E75':p.unlocked?t.color:'#B4B2A9';ctx.fill();
+    ctx.strokeStyle=isActive?'#26215C':'rgba(255,255,255,0.8)';ctx.lineWidth=isActive?3:2;ctx.stroke();
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    if(p.done){ctx.font='bold 15px Arial';ctx.fillStyle='#fff';ctx.fillText('✓',pos.x,pos.y);}
+    else if(!p.unlocked){ctx.font='14px Arial';ctx.fillStyle='#fff';ctx.fillText('🔒',pos.x,pos.y);}
+    else if(isLast){ctx.font='15px Arial';ctx.fillStyle='#fff';ctx.fillText('🏆',pos.x,pos.y);}
+    else{ctx.font='bold 13px Arial';ctx.fillStyle='#fff';ctx.fillText((i+1).toString(),pos.x,pos.y);}
+    if(p.unlocked||p.done){
+      const lines=t.name.split('\n');
+      ctx.font='600 11px Arial';ctx.textAlign='center';ctx.textBaseline='top';
+      const ly=pos.y+26,bw=58,bh=lines.length*13+4;
+      rrect(pos.x-bw/2,ly-2,bw,bh,4);ctx.fillStyle='rgba(255,255,255,0.9)';ctx.fill();
+      lines.forEach((ln,li)=>{ctx.fillStyle='#2C2C2A';ctx.fillText(ln,pos.x,ly+li*13);});
+      ctx.font='bold 10px Arial';
+      ctx.fillStyle=t.diff==='קל'?'#0F6E56':t.diff==='בינוני'?'#854F0B':'#A32D2D';
+      ctx.fillText('×'+t.steps,pos.x,ly+bh+3);
+    }
+    if(p.unlocked&&!p.done){
+      const pulse=(Date.now()%1200)/1200,r2=26+pulse*6,alpha=0.4*(1-pulse);
+      ctx.beginPath();ctx.arc(pos.x,pos.y,r2,0,Math.PI*2);
+      ctx.strokeStyle=`rgba(127,119,221,${alpha})`;ctx.lineWidth=2;ctx.stroke();
+    }
+  });
+  const fin=NODE_POS[NODE_POS.length-1];
+  ctx.font='600 12px Arial';ctx.fillStyle='#26215C';ctx.textAlign='center';ctx.textBaseline='top';
+  ctx.fillText('סיום!',fin.x,fin.y-44);
+  ctx.beginPath();ctx.moveTo(fin.x,fin.y-38);ctx.lineTo(fin.x,fin.y-30);
+  ctx.strokeStyle='#7F77DD';ctx.lineWidth=1.5;ctx.stroke();
+}
+
+function loop(){ctx.clearRect(0,0,W,H);drawBg();drawPaths();drawNodes();raf=requestAnimationFrame(loop);}
+loop();
+
+canvas.addEventListener('click',e=>{
+  const rect=canvas.getBoundingClientRect();
+  const sx=W/rect.width,sy=H/rect.height;
+  const mx=(e.clientX-rect.left)*sx,my=(e.clientY-rect.top)*sy;
+  NODE_POS.forEach((pos,i)=>{
+    const dx=mx-pos.x,dy=my-pos.y;
+    if(Math.sqrt(dx*dx+dy*dy)<28&&(progress[TOPICS[i].id].unlocked||progress[TOPICS[i].id].done))
+      startStation(TOPICS[i].id);
+  });
+});
+
+function startStation(id){
+  activeId=id;session={steps:[],penaltyMode:false,penaltyDone:0,answered:false,currentQ:null};
+  document.getElementById('idle-hint')&&(document.getElementById('idle-hint').style.display='none');
+  if(progress[id].done){document.getElementById('main-area').innerHTML=`<div class="quiz-card" style="text-align:center;color:#085041">✅ תחנה זו כבר הושלמה!</div>`;return;}
+  loadQ();
+}
+
+function rnd(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+function pick(a){return a[Math.floor(Math.random()*a.length)];}
+function gcd(a,b){return b===0?a:gcd(b,a%b);}
+
+function genQ(id){
+  const g={
+    natural:()=>{const a=rnd(1000,99999),b=rnd(1000,99999),mn=Math.max(a,b);return{q:`מה גדול יותר?`,sub:`${a.toLocaleString()} או ${b.toLocaleString()}`,ltr:false,a:mn.toString(),check:x=>parseInt(x.replace(/,/g,''))===mn,hint:'כתוב את המספר הגדול'};},
+    ops4:()=>{const op=pick(['+','−','×','÷']);if(op==='+'){const a=rnd(200,5000),b=rnd(200,5000);return{q:`${a.toLocaleString()} + ${b.toLocaleString()} = ?`,ltr:true,a:(a+b).toString(),check:x=>parseInt(x)===(a+b)};}if(op==='−'){const a=rnd(1000,9999),b=rnd(100,a-1);return{q:`${a.toLocaleString()} − ${b.toLocaleString()} = ?`,ltr:true,a:(a-b).toString(),check:x=>parseInt(x)===(a-b)};}if(op==='×'){const a=rnd(12,75),b=rnd(12,75);return{q:`${a} × ${b} = ?`,ltr:true,a:(a*b).toString(),check:x=>parseInt(x)===(a*b)};}const b=rnd(2,12),ans=rnd(10,80);return{q:`${b*ans} ÷ ${b} = ?`,ltr:true,a:ans.toString(),check:x=>parseInt(x)===ans};},
+    order:()=>pick([
+      ()=>{const a=rnd(3,15),b=rnd(2,8),c=rnd(10,30),d=rnd(2,9);const ans=a+b*c-d;return{q:`${a} + ${b} × ${c} − ${d} = ?`,ltr:true,a:ans.toString(),check:x=>parseInt(x)===ans};},
+      ()=>{const a=rnd(2,8),b=rnd(3,12),c=rnd(2,6),d=rnd(1,8);const ans=(a+b)*c-d*a;return{q:`(${a} + ${b}) × ${c} − ${d} × ${a} = ?`,ltr:true,a:ans.toString(),check:x=>parseInt(x)===ans};},
+      ()=>{const a=rnd(2,9),b=rnd(2,6),c=rnd(2,5),d=rnd(2,5),e=rnd(1,8);const ans=a*b+c*d-e;return{q:`${a} × ${b} + ${c} × ${d} − ${e} = ?`,ltr:true,a:ans.toString(),check:x=>parseInt(x)===ans};},
+      ()=>{const a=rnd(2,9),b=rnd(2,5),c=rnd(2,9),d=rnd(2,5);const ans=(a+b)*(c-d);return{q:`(${a} + ${b}) × (${c} − ${d}) = ?`,ltr:true,a:ans.toString(),check:x=>parseInt(x)===ans};},
+      ()=>{const a=rnd(2,7),b=rnd(2,5),c=rnd(10,25),d=rnd(2,4),e=rnd(2,6);const ans=a*b*c-d*e;return{q:`${a} × ${b} × ${c} − ${d} × ${e} = ?`,ltr:true,a:ans.toString(),check:x=>parseInt(x)===ans};},
+    ])(),
+    distrib:()=>{const a=rnd(3,9),b=rnd(10,50),c=rnd(1,9);const v=pick(['add','sub']);if(v==='add')return{q:`${a} × (${b} + ${c}) = ?`,ltr:true,a:(a*(b+c)).toString(),check:x=>parseInt(x)===a*(b+c)};return{q:`${a} × (${b} − ${c}) = ?`,ltr:true,a:(a*(b-c)).toString(),check:x=>parseInt(x)===a*(b-c)};},
+    unknown:()=>pick([
+      ()=>{const x=rnd(5,50),b=rnd(5,50);return{q:`□ + ${b} = ${x+b}`,ltr:true,a:x.toString(),check:i=>parseInt(i)===x,hint:'□ = ?'};},
+      ()=>{const x=rnd(2,12),b=rnd(2,12);return{q:`□ × ${b} = ${x*b}`,ltr:true,a:x.toString(),check:i=>parseInt(i)===x,hint:'□ = ?'};},
+      ()=>{const b=rnd(2,9),x=rnd(2,12);return{q:`${b*x} ÷ □ = ${b}`,ltr:true,a:x.toString(),check:i=>parseInt(i)===x,hint:'□ = ?'};},
+      ()=>{const b=rnd(2,9),x=rnd(3,15),c=rnd(1,10);return{q:`${b} × □ + ${c} = ${b*x+c}`,ltr:true,a:x.toString(),check:i=>parseInt(i)===x,hint:'□ = ?'};},
+    ])(),
+    estimate:()=>{const a=rnd(100,9000),b=rnd(100,9000);const ta=Math.round(a/100)*100,tb=Math.round(b/100)*100;return{q:`אמוד (עגל למאות):`,sub:`${a.toLocaleString()} + ${b.toLocaleString()} ≈ ?`,ltr:false,a:(ta+tb).toString(),check:x=>Math.abs(parseInt(x)-(ta+tb))<=200};},
+    powers:()=>pick([
+      ()=>{const b=rnd(2,9),e=rnd(2,3);return{q:`${b}^${e} = ?`,ltr:true,a:Math.pow(b,e).toString(),check:x=>parseInt(x)===Math.pow(b,e)};},
+      ()=>{const ans=rnd(2,12);return{q:`√${ans*ans} = ?`,ltr:true,a:ans.toString(),check:x=>parseInt(x)===ans};},
+      ()=>{const e=rnd(1,5);return{q:`10^${e} = ?`,ltr:true,a:Math.pow(10,e).toString(),check:x=>parseInt(x)===Math.pow(10,e)};},
+    ])(),
+    fractions:()=>pick([
+      ()=>{const d=pick([2,4,5,8,10]);const n=rnd(1,d-1);const dec=n/d;return{q:`הפוך לעשרוני: ${n}/${d}`,ltr:false,a:dec.toFixed(2).replace(/\.?0+$/,''),check:x=>Math.abs(parseFloat(x)-dec)<0.01};},
+      ()=>{const opts=[{f:'1/4',v:0.25},{f:'1/2',v:0.5},{f:'3/4',v:0.75},{f:'1/5',v:0.2},{f:'3/10',v:0.3}];const it=pick(opts);return{q:`הפוך לשבר: ${it.v}`,ltr:false,a:it.f,check:x=>{const p=x.split('/');return p[1]?Math.abs(parseInt(p[0])/parseInt(p[1])-it.v)<0.01:false;}};},
+    ])(),
+    pct:()=>pick([
+      ()=>{const p=pick([10,20,25,50,75]);const n=rnd(2,20)*10;return{q:`${p}% מ-${n} = ?`,ltr:true,a:(n*p/100).toString(),check:x=>parseFloat(x)===n*p/100};},
+      ()=>{const part=rnd(1,9)*5,whole=rnd(2,10)*10;const ans=Math.round(part/whole*100);return{q:`${part} מתוך ${whole} = ?%`,ltr:true,a:ans.toString(),check:x=>Math.abs(parseInt(x)-ans)<=1};},
+    ])(),
+    frac_ops:()=>pick([
+      ()=>{const d=pick([3,4,5,6,8]);const n1=rnd(1,Math.floor(d/2)),n2=rnd(1,Math.floor(d/2));const rn=n1+n2,g2=gcd(rn,d);return{q:`${n1}/${d} + ${n2}/${d} = ?`,ltr:true,a:`${rn/g2}/${d/g2}`,check:x=>{const p=x.split('/');return p[1]?Math.abs(parseInt(p[0])/parseInt(p[1])-rn/d)<0.01:false;}};},
+      ()=>{const d=pick([3,4,5,6]);const n1=rnd(2,d-1),n2=rnd(1,n1-1);const rn=n1-n2,g2=gcd(rn,d);return{q:`${n1}/${d} − ${n2}/${d} = ?`,ltr:true,a:`${rn/g2}/${d/g2}`,check:x=>{const p=x.split('/');return p[1]?Math.abs(parseInt(p[0])/parseInt(p[1])-rn/d)<0.01:false;}};},
+      ()=>{const n1=rnd(1,4),d1=pick([3,4,5]),n2=rnd(1,4),d2=pick([3,4,5]);const rn=n1*n2,rd=d1*d2,g2=gcd(rn,rd);return{q:`${n1}/${d1} × ${n2}/${d2} = ?`,ltr:true,a:`${rn/g2}/${rd/g2}`,check:x=>{const p=x.split('/');return p[1]?Math.abs(parseInt(p[0])/parseInt(p[1])-rn/rd)<0.01:false;}};},
+    ])(),
+    convert:()=>pick([
+      ()=>{const data=[{f:'1/4',d:'0.25'},{f:'1/2',d:'0.5'},{f:'3/4',d:'0.75'},{f:'1/5',d:'0.2'},{f:'3/10',d:'0.3'},{f:'2/5',d:'0.4'}];const it=pick(data);return{q:`הפוך לעשרוני: ${it.f}`,ltr:false,a:it.d,check:x=>x.trim()===it.d};},
+      ()=>{const data=[{f:'1/4',p:'25%'},{f:'1/2',p:'50%'},{f:'3/4',p:'75%'},{f:'1/5',p:'20%'},{f:'3/10',p:'30%'}];const it=pick(data);return{q:`הפוך לאחוז: ${it.f}`,ltr:false,a:it.p,check:x=>x.trim()===it.p};},
+    ])(),
+    partof:()=>pick([
+      ()=>{const p=pick([10,20,25,50]);const n=rnd(2,10)*10;return{q:`בכיתה ${n} תלמידים, ${p}% בנות. כמה בנות?`,ltr:false,a:(n*p/100).toString(),check:x=>parseInt(x)===n*p/100};},
+      ()=>{const orig=rnd(3,15)*10;const p=pick([10,20,30,50]);const disc=orig*p/100;return{q:`מוצר עולה ${orig} ₪, הנחה ${p}%. מחיר סופי?`,ltr:false,a:(orig-disc).toString(),check:x=>parseInt(x)===orig-disc};},
+    ])(),
+    geo:()=>pick([
+      ()=>{const w=rnd(3,15),h=rnd(3,12);return{q:`מלבן ${w} × ${h} ס"מ — שטח?`,ltr:true,a:(w*h).toString(),check:x=>parseInt(x)===w*h};},
+      ()=>{const w=rnd(3,15),h=rnd(3,12);return{q:`מלבן ${w} × ${h} ס"מ — היקף?`,ltr:true,a:(2*(w+h)).toString(),check:x=>parseInt(x)===2*(w+h)};},
+      ()=>{const s=rnd(3,15);return{q:`ריבוע, צלע ${s} ס"מ — שטח?`,ltr:true,a:(s*s).toString(),check:x=>parseInt(x)===s*s};},
+      ()=>{const b=rnd(4,16),h=rnd(3,12);return{q:`משולש, בסיס ${b}, גובה ${h} ס"מ — שטח?`,ltr:true,a:(b*h/2).toString(),check:x=>parseFloat(x)===b*h/2,hint:'(בסיס × גובה) ÷ 2'};},
+    ])(),
+    circle:()=>pick([
+      ()=>{const PI=3.14,r=rnd(3,10);const c=parseFloat((2*PI*r).toFixed(2));return{q:`עיגול, רדיוס ${r} ס"מ (π=3.14) — היקף?`,ltr:false,a:c.toString(),check:x=>Math.abs(parseFloat(x)-c)<0.2,hint:'2πr'};},
+      ()=>{const PI=3.14,r=rnd(3,10);const a=parseFloat((PI*r*r).toFixed(2));return{q:`עיגול, רדיוס ${r} ס"מ (π=3.14) — שטח?`,ltr:false,a:a.toString(),check:x=>Math.abs(parseFloat(x)-a)<0.5,hint:'πr²'};},
+      ()=>{const r=rnd(3,12);return{q:`קוטר ${r*2} ס"מ — רדיוס?`,ltr:false,a:r.toString(),check:x=>parseInt(x)===r};},
+    ])(),
+    volume:()=>pick([
+      ()=>{const l=rnd(2,10),w=rnd(2,8),h=rnd(2,7);return{q:`תיבה ${l} × ${w} × ${h} ס"מ — נפח?`,ltr:true,a:(l*w*h).toString(),check:x=>parseInt(x)===l*w*h,hint:'א × ר × ג'};},
+      ()=>{const l=rnd(2,10),w=rnd(2,8),h=rnd(2,7),vol=l*w*h;return{q:`נפח ${vol} ס"מ³, א=${l}, ר=${w} — גובה?`,ltr:false,a:h.toString(),check:x=>parseInt(x)===h};},
+    ])(),
+  };
+  return (g[id]||g.ops4)();
+}
+
+function loadQ(){
+  session.currentQ=genQ(activeId);session.answered=false;
+  const topic=TOPICS.find(t=>t.id===activeId);
+  const stepsNeeded=topic.steps;
+  let dotsHtml='';
+  if(session.penaltyMode){
+    dotsHtml+=`<div class="dot" style="background:#E24B4A"></div>`;
+    for(let i=0;i<2;i++)dotsHtml+=`<div class="dot" style="background:${i<session.penaltyDone?'#1D9E75':'#D3D1C7'}"></div>`;
+  } else {
+    for(let i=0;i<stepsNeeded;i++){
+      const s=session.steps[i];
+      dotsHtml+=`<div class="dot" style="background:${s===true?'#1D9E75':s===false?'#E24B4A':i===session.steps.length?topic.color:'#D3D1C7'}"></div>`;
+    }
+  }
+  const penTag=session.penaltyMode?`<div style="font-size:12px;background:#FAEEDA;color:#854F0B;border-radius:99px;padding:3px 10px;margin-bottom:10px;display:inline-block">⚠️ ענה נכון על 2 שאלות להמשיך</div>`:'';
+  const qNum=session.penaltyMode?(session.penaltyDone+1):session.steps.length+1;
+  const total=session.penaltyMode?2:stepsNeeded;
+  const q=session.currentQ;
+  let qHtml='';
+  if(q.sub){qHtml=`<div class="q-text mixed">${q.q}</div><div class="q-text ltr">${q.sub}</div>`;}
+  else{qHtml=`<div class="q-text ${q.ltr?'ltr':'mixed'}">${q.q.replace(/\n/g,'<br>')}</div>`;}
+  document.getElementById('main-area').innerHTML=`
+  <div class="quiz-card">
+    <div class="quiz-top">
+      <div>
+        <span class="quiz-label">${topic.name.replace('\n',' ')} · שאלה ${qNum}/${total}</span><br>
+        <span class="diff-tag" style="background:${topic.dc};color:${topic.dt}">${topic.diff}</span>
+      </div>
+      <div class="dots-row">${dotsHtml}</div>
+    </div>
+    ${penTag}
+    ${qHtml}
+    ${q.hint?`<div style="font-size:13px;color:#888;margin-bottom:12px">💡 רמז: ${q.hint}</div>`:''}
+    <div class="input-row">
+      <button class="chk-btn" id="chk" onclick="checkA()">בדוק</button>
+      <input class="ans-in" id="ain" type="text" placeholder="תשובה" autocomplete="off" onkeydown="if(event.key==='Enter')checkA()">
+    </div>
+    <div class="fb" id="fb"></div>
+    <button class="nxt-btn" id="nxt" onclick="advance()">המשך →</button>
+  </div>`;
+  setTimeout(()=>{const el=document.getElementById('ain');if(el)el.focus();},80);
+}
+
+function checkA(){
+  if(session.answered)return;
+  const val=(document.getElementById('ain').value||'').trim();
+  if(!val)return;
+  session.answered=true;
+  const ok=session.currentQ.check(val);
+  const fb=document.getElementById('fb');
+  fb.style.display='block';
+  document.getElementById('chk').disabled=true;
+  document.getElementById('ain').disabled=true;
+  document.getElementById('nxt').style.display='inline-block';
+  if(ok){
+    fb.className='fb fb-ok';fb.innerHTML=`✅ <strong>נכון!</strong> התשובה: ${session.currentQ.a}`;
+    if(session.penaltyMode){session.penaltyDone++;if(session.penaltyDone>=2){session.penaltyMode=false;session.penaltyDone=0;}}
+    else session.steps.push(true);
+    stars++;document.getElementById('star-disp').textContent=stars+' כוכבים';
+  } else {
+    fb.className='fb fb-no';fb.innerHTML=`❌ <strong>לא נכון.</strong> התשובה הנכונה: <strong>${session.currentQ.a}</strong>`;
+    if(!session.penaltyMode){session.steps.push(false);session.penaltyMode=true;session.penaltyDone=0;}
+    else session.penaltyDone=0;
+  }
+}
+
+function advance(){
+  const topic=TOPICS.find(t=>t.id===activeId);
+  const correct=session.steps.filter(s=>s===true).length;
+  if(!session.penaltyMode&&correct>=topic.steps){completeStation();}else loadQ();
+}
+
+function completeStation(){
+  const idx=TOPICS.findIndex(t=>t.id===activeId);
+  progress[activeId].done=true;
+  if(idx+1<TOPICS.length)progress[TOPICS[idx+1].id].unlocked=true;
+  stars+=3;document.getElementById('star-disp').textContent=stars+' כוכבים';
+  if(idx===TOPICS.length-1){
+    document.getElementById('main-area').innerHTML=`
+    <div class="win-box">
+      <div style="font-size:48px;margin-bottom:12px">🏆</div>
+      <div class="win-title">כל הכבוד! סיימת את המסלול!</div>
+      <div style="font-size:16px;color:#534AB7;margin-bottom:18px">עמדת בכל האתגרים!</div>
+      <div style="font-size:22px;font-weight:700;color:#26215C;background:#fff;border-radius:12px;padding:16px 24px;display:inline-block">
+        🎮 עכשיו אתה יכול לשחק!
+      </div>
+      <div style="margin-top:14px;font-size:14px;color:#534AB7">צברת <strong>${stars} כוכבים</strong> — אתה מוכן למבחן! ⭐</div>
+    </div>`;
+    return;
+  }
+  const next=TOPICS[idx+1];
+  document.getElementById('main-area').innerHTML=`
+  <div class="quiz-card" style="text-align:center;background:#E1F5EE;border-color:#5DCAA5">
+    <div style="font-size:28px;margin-bottom:8px">⭐ +3 כוכבים!</div>
+    <div style="font-size:17px;font-weight:600;color:#085041;margin-bottom:6px">תחנה הושלמה! 🎉</div>
+    <div style="font-size:14px;color:#0F6E56;margin-bottom:14px">
+      התחנה הבאה: <strong>${next.name.replace('\n',' ')}</strong>
+      <span class="diff-tag" style="background:${next.dc};color:${next.dt};margin-right:6px">${next.diff} · ${next.steps} שאלות</span>
+    </div>
+    <button class="chk-btn" onclick="startStation('${next.id}')" style="margin:0 auto">לתחנה הבאה →</button>
+  </div>`;
+  activeId=null;
+}
+</script>
+</body>
+</html>
